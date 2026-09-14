@@ -1,0 +1,21 @@
+{
+  "name": "workstation-server-supervisor",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20.17.0" },
+  "bin": { "server-watch": "src/cli.mjs" },
+  "scripts": {
+    "tui": "node src/cli.mjs",
+    "status": "node src/cli.mjs status",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@inquirer/ansi": "2.0.8",
+    "@inquirer/checkbox": "5.2.2",
+    "@inquirer/confirm": "6.2.0",
+    "@inquirer/core": "12.0.3",
+    "@inquirer/input": "5.1.3",
+    "@inquirer/select": "5.0.2"
+  }
+}
