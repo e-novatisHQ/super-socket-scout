@@ -1,35 +1,37 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { categoryOf, defaultFilters, filterServers, groupServers, nextScope, SCOPE_ORDER, summarize } from "../src/ui/view-model.mjs";
+import { categoryOf, defaultFilters, diagnosticOf, filterServers, groupServers, nextScope, SCOPE_ORDER, summarize } from "../src/ui/view-model.mjs";
 import { createLinuxAdapter } from "../src/system/linux-adapter.mjs";
 import { buildInteractiveChoices } from "../src/ui/terminal-ui.mjs";
-import { shortcutAction } from "../src/ui/server-prompt.mjs";
+import { helpLines, shortcutAction } from "../src/ui/server-prompt.mjs";
 
 const items = [
   { id: "orphan", protocol: "tcp", port: 31000, exposed: true, pid: 1, orphan: true, system: false, worktree: false },
-  { id: "project", protocol: "tcp", port: 5173, exposed: true, pid: 2, project: "/repo/app", orphan: false, system: false, worktree: false },
-  { id: "worktree", protocol: "tcp", port: 5174, exposed: false, pid: 3, project: "/repo/app", orphan: false, system: false, worktree: true },
+  { id: "project", protocol: "tcp", port: 5173, exposed: true, pid: 2, project: "/repo/app", orphan: false, system: false, worktree: false, confidence: "certain" },
+  { id: "worktree", protocol: "tcp", port: 5174, exposed: false, pid: 3, project: "/repo/app", orphan: false, system: false, worktree: true, confidence: "certain" },
   { id: "unknown", protocol: "tcp", port: 7070, exposed: true, pid: null, orphan: false, system: true, worktree: false },
-  { id: "system", protocol: "tcp", port: 22, exposed: true, pid: 4, orphan: false, system: true, worktree: false },
-  { id: "udp", protocol: "udp", port: 5353, exposed: true, pid: 5, orphan: false, system: true, worktree: false },
+  { id: "system", protocol: "tcp", port: 22, exposed: true, pid: 4, orphan: false, system: true, worktree: false, confidence: "certain" },
+  { id: "udp", protocol: "udp", port: 5353, exposed: true, pid: 5, orphan: false, system: true, worktree: false, confidence: "probable" },
 ];
 
-test("la vue pertinente masque le bruit système et UDP", () => {
-  assert.deepEqual(filterServers(items, defaultFilters()).map((item) => item.id), ["orphan", "project", "worktree", "unknown"]);
+test("la vue Attention ne montre que les décisions utiles et masque UDP", () => {
+  assert.deepEqual(filterServers(items, defaultFilters()).map((item) => item.id), ["orphan", "unknown"]);
 });
 
-test("les filtres worktree, système et recherche sont combinables", () => {
-  assert.deepEqual(filterServers(items, { scope: "worktrees", query: "5174", showUdp: true }).map((item) => item.id), ["worktree"]);
+test("les vues projet, système et la recherche sont combinables", () => {
+  assert.deepEqual(filterServers(items, { scope: "projects", query: "5174", showUdp: true }).map((item) => item.id), ["worktree"]);
   assert.deepEqual(filterServers(items, { scope: "system", query: "", showUdp: true }).map((item) => item.id), ["unknown", "system", "udp"]);
 });
 
-test("la hiérarchie place une exposition inconnue dans les alertes", () => {
-  assert.equal(categoryOf(items[3]), "alerts");
-  assert.deepEqual(groupServers(items.slice(0, 4)).map((section) => section.key), ["alerts", "projects"]);
+test("la hiérarchie décisionnelle distingue action, vérification et normal", () => {
+  assert.equal(diagnosticOf(items[0]), "action");
+  assert.equal(categoryOf(items[3]), "review");
+  assert.deepEqual(groupServers(items.slice(0, 4)).map((section) => section.key), ["action", "review", "normal"]);
+  assert.match(groupServers([items[0]])[0].label, /ORPHELINS/);
 });
 
 test("le résumé compte projets uniques et catégories opérationnelles", () => {
-  assert.deepEqual(summarize(items), { alerts: 2, projects: 1, exposed: 5, system: 3, worktrees: 1, total: 6 });
+  assert.deepEqual(summarize(items), { actions: 1, review: 1, normal: 4, alerts: 2, projects: 1, projectServers: 2, exposed: 5, system: 3, worktrees: 1, total: 6 });
 });
 
 test("les sockets IPv4 et IPv6 inconnues d'un même port forment un service", async () => {
@@ -58,9 +60,9 @@ test("le tableau interactif contient une seule ligne navigable par serveur", () 
 });
 
 test("la vue bascule dans un cycle déterministe sans sous-menu", () => {
-  assert.equal(nextScope("relevant"), "exposed");
-  assert.equal(nextScope("worktrees"), "orphans");
-  assert.equal(nextScope(SCOPE_ORDER.at(-1)), "relevant");
+  assert.equal(nextScope("attention"), "projects");
+  assert.equal(nextScope("projects"), "system");
+  assert.equal(nextScope(SCOPE_ORDER.at(-1)), "attention");
 });
 
 test("les actions globales sont des raccourcis et non des éléments de menu", () => {
@@ -73,4 +75,13 @@ test("les actions globales sont des raccourcis et non des éléments de menu", (
   assert.deepEqual(shortcutAction({ name: "u" }, SCOPE_ORDER), { type: "udp" });
   assert.deepEqual(shortcutAction({ name: "3" }, SCOPE_ORDER), { type: "scope-direct", scope: SCOPE_ORDER[2] });
   assert.deepEqual(shortcutAction({ name: "left" }, SCOPE_ORDER), { type: "scope", direction: -1 });
+});
+
+test("l'aide répartit les raccourcis sur toute la largeur disponible", () => {
+  assert.equal(helpLines(80).split("\n").length, 2);
+  assert.match(helpLines(100), /détails {6}←→ vue/);
+  assert.match(helpLines(100), /e sudo {6}r rafraîchir/);
+  assert.equal(helpLines(130).split("\n").length, 1);
+  assert.ok(helpLines(130).length <= 130);
+  assert.equal(helpLines(50).split("\n").length, 4);
 });

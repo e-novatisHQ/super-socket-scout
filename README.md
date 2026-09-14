@@ -17,9 +17,17 @@ npm ci
 npm run tui
 ```
 
-La vue initiale réduit le bruit : elle affiche d'abord les anomalies, les projets et les applications TCP exposées. Les services système et UDP restent accessibles par les filtres, mais sont repliés par défaut.
+La vue initiale **Attention** réduit le bruit : elle ne montre que les éléments qui demandent une action ou une vérification. Un résumé décisionnel distingue immédiatement `Action recommandée`, `À vérifier` et `Sans anomalie`.
 
-Le tableau hiérarchisé est directement navigable : il n'existe pas de seconde liste dupliquée. Les titres de section et les colonnes restent visibles, tandis que chaque ligne de serveur ouvre ses détails avec `Entrée`. Les vues apparaissent comme des onglets selon le cycle `Pertinente → Exposés → Projets → Worktrees → Orphelins → Système → Tous`. `←` et `→` changent d'onglet, et les touches `1` à `7` ouvrent directement une vue. Les filtres restent actifs pendant la session.
+Le tableau hiérarchisé est directement navigable : il n'existe pas de seconde liste dupliquée. Les sections portent le diagnostic une seule fois et les lignes répondent dans l'ordre à trois questions : quel service, dans quel contexte et sur quelle écoute ? Les détails comme le PID, la commande, la branche, le runtime et les preuves restent accessibles avec `Entrée`. Les quatre onglets `Attention → Projets → Système → Tous` sont intégrés dans un séparateur visuel, sans libellé redondant. `←` et `→` changent d'onglet, et les touches `1` à `4` ouvrent directement une vue. Le nombre affiché est rapporté au total de la vue afin de rendre l'effet des filtres explicite.
+
+Une phrase sous la ligne sélectionnée explique le diagnostic et indique l'action utile, par exemple utiliser `e` lorsque le propriétaire d'une écoute externe est masqué.
+
+Les processus orphelins sont regroupés sous `ORPHELINS — ACTION REQUISE`. Leur contexte indique immédiatement `Worktree disparu` ou `Dossier disparu`; le détail conserve la cause et le dernier chemin connu.
+
+Le tableau s'adapte à la largeur du terminal. Sous 80 colonnes, il conserve seulement le service et l'écoute. Entre 80 et 119 colonnes, le contexte reçoit tout l'espace restant. À partir de 120 colonnes, une colonne runtime apparaît. La largeur utile est plafonnée à 130 colonnes afin de préserver une lecture compacte.
+
+Les libellés très répétés sont abrégés dans l'inventaire (`App`, `Non identifié`, `ext`, `loc`, `ident.`). Le panneau détaillé conserve les appellations et adresses complètes.
 
 La liste ne contient que les serveurs. Les actions globales utilisent des raccourcis permanents : `/` recherche, `u` affiche ou masque UDP, `e` active ou désactive l'identification élevée, `r` rafraîchit et `q` quitte.
 

@@ -5,6 +5,26 @@ import {
 
 function selectable(choice) { return !choice.disabled && choice.value; }
 
+function spread(parts, width) {
+  const spaces = width - parts.reduce((total, part) => total + part.length, 0);
+  if (parts.length === 1 || spaces < parts.length - 1) return parts.join("\n");
+  const gaps = parts.length - 1;
+  const gap = Math.min(6, Math.floor(spaces / gaps));
+  return parts.map((part, index) => index === parts.length - 1
+    ? part
+    : `${part}${" ".repeat(gap)}`).join("");
+}
+
+export function helpLines(width = 100) {
+  const navigation = "↑↓ serveur · Entrée détails";
+  const views = "←→ vue · 1–4 accès direct";
+  const filters = "/ recherche · u UDP · e sudo";
+  const session = "r rafraîchir · q quitter";
+  if (width >= 124) return spread([navigation, views, `${filters} · ${session}`], width);
+  if (width >= 64) return `${spread([navigation, views], width)}\n${spread([filters, session], width)}`;
+  return [navigation, views, filters, session].join("\n");
+}
+
 export function shortcutAction(key, scopes) {
   const name = key.name ?? key.sequence;
   if (name === "q") return { type: "quit" };
@@ -20,7 +40,7 @@ export function shortcutAction(key, scopes) {
 }
 
 export const serverPrompt = createPrompt((config, done) => {
-  const items = config.choices.length ? config.choices : [{ name: "Aucun serveur dans cette vue", value: null, disabled: true }];
+  const items = config.choices.length ? config.choices : [{ name: config.emptyLabel ?? "Aucun serveur dans cette vue", value: null, disabled: true }];
   const selectableIndexes = items.flatMap((item, index) => selectable(item) ? [index] : []);
   const [active, setActive] = useState(selectableIndexes[0] ?? 0);
 
@@ -44,9 +64,11 @@ export const serverPrompt = createPrompt((config, done) => {
     loop: true,
     renderItem({ item, isActive }) {
       if (item.disabled) return `\x1b[2m  ${item.name}\x1b[0m`;
-      return `${isActive ? "\x1b[36m› " : "  "}${item.name}${isActive ? "\x1b[0m" : ""}`;
+      return `${isActive ? "\x1b[36m›\x1b[0m " : "  "}${item.name}`;
     },
   });
 
-  return `${page}\n\n\x1b[2m↑↓ serveur · Entrée détails · ←→ vue · 1–7 accès direct\n/ recherche · u UDP · e sudo · r rafraîchir · q quitter\x1b[0m${cursorHide}`;
+  const description = selectableIndexes.length ? items[active]?.description : null;
+  const separator = "─".repeat(config.width ?? 100);
+  return `${page}\n\n\x1b[2m${separator}\x1b[0m${description ? `\n${description}` : ""}\n\n\x1b[2m${helpLines(config.width)}\x1b[0m${cursorHide}`;
 });

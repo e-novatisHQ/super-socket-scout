@@ -1,15 +1,12 @@
 export const SCOPES = Object.freeze({
-  relevant: "Vue pertinente",
-  exposed: "Exposés",
+  attention: "Attention",
   projects: "Projets",
-  worktrees: "Worktrees",
-  orphans: "Orphelins",
   system: "Système",
   all: "Tous",
 });
 
 export const SCOPE_ORDER = Object.freeze([
-  "relevant", "exposed", "projects", "worktrees", "orphans", "system", "all",
+  "attention", "projects", "system", "all",
 ]);
 
 export function nextScope(current) {
@@ -18,7 +15,7 @@ export function nextScope(current) {
 }
 
 export function defaultFilters() {
-  return { scope: "relevant", query: "", showUdp: false };
+  return { scope: "attention", query: "", showUdp: false };
 }
 
 export function isUnknownExposed(item) {
@@ -26,25 +23,24 @@ export function isUnknownExposed(item) {
 }
 
 export function isAnomaly(item) {
-  return item.orphan || isUnknownExposed(item);
+  return diagnosticOf(item) !== "normal";
+}
+
+export function diagnosticOf(item) {
+  if (item.orphan) return "action";
+  if (isUnknownExposed(item) || item.exposed && ["unknown", "partial"].includes(item.confidence ?? "unknown")) return "review";
+  return "normal";
 }
 
 export function categoryOf(item) {
-  if (isAnomaly(item)) return "alerts";
-  if (item.project && !item.system) return "projects";
-  if (item.system) return "system";
-  if (!item.exposed) return "local";
-  return "other";
+  return diagnosticOf(item);
 }
 
 function matchesScope(item, scope) {
   if (scope === "all") return true;
-  if (scope === "exposed") return item.exposed;
   if (scope === "projects") return Boolean(item.project);
-  if (scope === "worktrees") return item.worktree;
-  if (scope === "orphans") return item.orphan;
   if (scope === "system") return item.system;
-  return isAnomaly(item) || Boolean(item.project) || (!item.system && item.exposed && item.protocol === "tcp");
+  return diagnosticOf(item) !== "normal";
 }
 
 function haystack(item) {
@@ -64,8 +60,12 @@ export function filterServers(items, filters) {
 
 export function summarize(items) {
   return {
-    alerts: items.filter(isAnomaly).length,
+    actions: items.filter((item) => diagnosticOf(item) === "action").length,
+    review: items.filter((item) => diagnosticOf(item) === "review").length,
+    normal: items.filter((item) => diagnosticOf(item) === "normal").length,
+    alerts: items.filter((item) => diagnosticOf(item) !== "normal").length,
     projects: new Set(items.map((item) => item.project).filter(Boolean)).size,
+    projectServers: items.filter((item) => item.project && !item.system).length,
     exposed: items.filter((item) => item.exposed).length,
     system: items.filter((item) => item.system).length,
     worktrees: items.filter((item) => item.worktree).length,
@@ -73,13 +73,11 @@ export function summarize(items) {
   };
 }
 
-const SECTION_ORDER = ["alerts", "projects", "other", "system", "local"];
+const SECTION_ORDER = ["action", "review", "normal"];
 export const SECTION_LABELS = Object.freeze({
-  alerts: "À SURVEILLER",
-  projects: "SERVEURS DE PROJET",
-  other: "AUTRES APPLICATIONS EXPOSÉES",
-  system: "SERVICES SYSTÈME",
-  local: "SERVICES LOCAUX",
+  action: "ORPHELINS — ACTION REQUISE",
+  review: "À VÉRIFIER",
+  normal: "SANS ANOMALIE",
 });
 
 export function groupServers(items) {

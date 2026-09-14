@@ -1,7 +1,7 @@
 import confirm from "@inquirer/confirm";
 import input from "@inquirer/input";
 import select from "@inquirer/select";
-import { SCOPES, groupServers, summarize } from "./view-model.mjs";
+import { diagnosticOf, filterServers, SCOPES, groupServers, summarize } from "./view-model.mjs";
 import { serverPrompt } from "./server-prompt.mjs";
 
 const color = {
@@ -24,67 +24,123 @@ function flags(server) {
   ].filter(Boolean).join(" ");
 }
 
-function stateLabel(server) {
-  if (server.orphan) return color.red("ORPHELIN");
-  if (server.confidence === "certain") return color.green("✓ CERTAIN");
-  if (server.confidence === "probable") return color.yellow("~ PROBABLE");
-  if (server.confidence === "partial") return color.yellow("· PARTIEL");
-  return color.red("? INCONNU");
-}
-
 function ownerLabel(item) {
   return item.serviceName ?? item.processName ?? item.command?.split(" ")[0]?.split("/").at(-1) ?? "Service non identifié";
 }
 
-function row(item, compact = false) {
-  const endpointWidth = compact ? 11 : 14;
-  const ownerWidth = compact ? 18 : 26;
-  const originWidth = compact ? 16 : 25;
-  const endpoint = short(`${item.port}/${item.protocol}${item.endpoints?.length > 1 ? ` +${item.endpoints.length - 1}` : ""}`, endpointWidth).padEnd(endpointWidth);
-  const exposure = (item.exposed ? "EXTERNE" : "LOCAL").padEnd(8);
-  const owner = short(ownerLabel(item), ownerWidth).padEnd(ownerWidth);
+function compactOwnerLabel(item) {
+  return ownerLabel(item)
+    .replace(/^Application\b/, "App")
+    .replace(/^Service non identifié$/, "Non identifié");
+}
+
+function contextLabel(item) {
+  if (item.orphan) return item.worktree ? "Worktree disparu" : "Dossier disparu";
   const projectName = item.project?.split("/").at(-1);
-  const origin = item.worktree ? `${projectName} · worktree`
-    : projectName ? `${projectName} · dépôt` : item.manager ?? (item.system ? "service système" : "hors projet");
-  return `  ${endpoint} ${exposure} ${owner} ${short(origin, originWidth).padEnd(originWidth)} ${stateLabel(item)}`;
+  if (item.worktree) return `${projectName ?? "Projet"} · worktree`;
+  if (projectName) return projectName;
+  if (item.system) return "Système";
+  return "Hors projet";
+}
+
+function listeningLabel(item) {
+  const protocol = item.protocol === "udp" ? " UDP" : "";
+  const more = item.endpoints?.length > 1 ? ` +${item.endpoints.length - 1}` : "";
+  return `${item.port}${protocol}${more} ${item.exposed ? "ext" : "loc"}`;
+}
+
+function usefulWidth(columns) {
+  return Math.max(50, Math.min(columns ?? 100, 130));
+}
+
+export function tableLayout(width = 100) {
+  const contentWidth = usefulWidth(width) - 2;
+  if (width < 80) return { service: Math.max(18, contentWidth - 19), listening: 18, context: 0, runtime: 0 };
+  if (width < 120) return { service: 23, context: Math.max(21, contentWidth - 42), listening: 17, runtime: 0 };
+  return { service: 26, context: Math.max(28, contentWidth - 67), listening: 18, runtime: 20 };
+}
+
+function tableHeader(width, leading = true) {
+  const layout = tableLayout(width);
+  const prefix = leading ? "  " : "";
+  if (!layout.context) return `${prefix}${"SERVICE".padEnd(layout.service)} ${"ÉCOUTE".padEnd(layout.listening)}`;
+  const base = `${prefix}${"SERVICE".padEnd(layout.service)} ${"CONTEXTE".padEnd(layout.context)} ${"ÉCOUTE".padEnd(layout.listening)}`;
+  return layout.runtime ? `${base} RUNTIME` : base;
+}
+
+export function guidance(item) {
+  if (item.orphan) return "Dossier de travail disparu · Entrée : comprendre ou arrêter";
+  if (diagnosticOf(item) === "review" && !item.pid) return "Propriétaire masqué · e : mieux identifier · Entrée : détails";
+  if (diagnosticOf(item) === "review") return "Identification incertaine · Entrée : voir les preuves";
+  if (item.project) return "Serveur rattaché à un projet · Entrée : détails";
+  if (item.system) return "Service système identifié · Entrée : détails";
+  return "Aucune anomalie détectée · Entrée : détails";
+}
+
+function row(item, width = 100, leading = true) {
+  const layout = tableLayout(width);
+  const prefix = leading ? "  " : "";
+  const service = short(compactOwnerLabel(item), layout.service).padEnd(layout.service);
+  const listening = short(listeningLabel(item), layout.listening).padEnd(layout.listening);
+  if (!layout.context) return `${prefix}${service} ${listening}`;
+  const context = short(contextLabel(item), layout.context).padEnd(layout.context);
+  const base = `${prefix}${service} ${context} ${listening}`;
+  const runtime = item.runtime ?? item.manager ?? "—";
+  return layout.runtime ? `${base} ${short(runtime, layout.runtime)}` : base;
+}
+
+function sectionLabel(section) {
+  const label = `${section.label}  (${section.items.length})`;
+  if (section.key === "action") return color.red(label);
+  if (section.key === "review") return color.yellow(label);
+  return color.green(label);
 }
 
 export function renderInventory(allItems, visibleItems = allItems, filters = { scope: "all", query: "", showUdp: true }, stdout = process.stdout) {
+  const width = usefulWidth(stdout.columns);
   renderDashboardHeader(allItems, visibleItems, filters, stdout);
   if (!visibleItems.length) stdout.write("\n  Aucun serveur ne correspond aux filtres.\n");
   for (const section of groupServers(visibleItems)) {
-    stdout.write(`\n${color.bold(section.label)}  ${color.dim(`(${section.items.length})`)}\n`);
-    stdout.write(color.dim("  PORT           ACCÈS    PROJET / SERVICE           ORIGINE                   ÉTAT\n"));
-    for (const item of section.items) stdout.write(`${row(item)}\n`);
+    stdout.write(`\n${color.bold(sectionLabel(section))}\n`);
+    stdout.write(`${color.dim(tableHeader(width))}\n`);
+    for (const item of section.items) stdout.write(`${row(item, width)}\n`);
   }
 }
 
 export function renderDashboardHeader(allItems, visibleItems, filters, stdout = process.stdout) {
   const summary = summarize(allItems);
-  const visibleSummary = summarize(visibleItems);
-  const hiddenSystem = allItems.filter((item) => item.system && !visibleItems.some((visible) => visible.id === item.id)).length;
+  const scopeTotal = filterServers(allItems, { ...filters, query: "", showUdp: true }).length;
   stdout.write("\x1b[2J\x1b[H");
   stdout.write(`${color.bold("Supervision réseau")}  ${color.dim(`actualisé ${new Date().toLocaleTimeString("fr-FR")}`)}\n\n`);
-  stdout.write(`${summary.alerts ? color.red(`⚠ ${visibleSummary.alerts} visibles / ${summary.alerts} à surveiller`) : color.green("✓ aucune anomalie")}   `);
-  stdout.write(`${color.cyan(`● ${summary.projects} projets`)}   ${color.yellow(`◆ ${summary.system} système`)}   ○ ${summary.total} services\n`);
-  stdout.write(`Exposition : ${color.red(`${summary.exposed} externes`)}   Worktrees : ${summary.worktrees}\n`);
-  const tabs = Object.entries(SCOPES).map(([key, label], index) => key === filters.scope
-    ? color.cyan(`[${index + 1} ${label}]`)
-    : color.dim(`${index + 1} ${label}`)).join("  ");
-  stdout.write(`Vues : ${tabs}\n`);
-  stdout.write(`UDP ${filters.showUdp ? "affiché" : "masqué"} · Identification ${filters.elevated ? color.yellow("élevée") : "standard"}${filters.query ? ` · recherche « ${filters.query} »` : ""}\n`);
-  if (filters.scope === "relevant" && hiddenSystem) stdout.write(color.dim(`\n${hiddenSystem} services système repliés — choisir le filtre Système ou Tous pour les afficher.\n`));
+  if (!summary.alerts) stdout.write(`${color.green("✓ Rien ne nécessite votre attention")}\n`);
+  else stdout.write(`${summary.actions ? color.red(`⚠ ${summary.actions} action${summary.actions > 1 ? "s" : ""} recommandée${summary.actions > 1 ? "s" : ""}`) : color.dim("0 action requise")}   ${summary.review ? color.yellow(`? ${summary.review} à vérifier`) : color.dim("0 à vérifier")}   ${color.green(`✓ ${summary.normal} sans anomalie`)}\n`);
+  stdout.write(color.dim(`${summary.projectServers} serveurs de projet · ${summary.system} services système · ${summary.total} services au total\n\n`));
+  const tabEntries = Object.entries(SCOPES);
+  const plainTabs = tabEntries.map(([key, label], index) => key === filters.scope ? `|${index + 1} ${label}|` : `${index + 1} ${label}`);
+  const tabs = tabEntries.map(([key, label], index) => key === filters.scope
+    ? color.cyan(`|${index + 1} ${label}|`)
+    : color.dim(`${index + 1} ${label}`));
+  const targetWidth = usefulWidth(stdout.columns);
+  const activeIndex = tabEntries.findIndex(([key]) => key === filters.scope);
+  const gap = "   ";
+  const activeStart = 2 + plainTabs.slice(0, activeIndex).reduce((length, tab) => length + tab.length + gap.length, 0);
+  const activeWidth = plainTabs[activeIndex]?.length ?? 0;
+  const underline = `${"─".repeat(activeStart)}${" ".repeat(activeWidth)}${"─".repeat(Math.max(0, targetWidth - activeStart - activeWidth))}`;
+  stdout.write(`  ${tabs.join(gap)}\n${color.cyan(underline)}\n`);
+  const visibleCount = scopeTotal ? `${visibleItems.length}/${scopeTotal} affichés · ` : "";
+  stdout.write(color.dim(`   ${visibleCount}UDP ${filters.showUdp ? "affiché" : "masqué"} · ident. ${filters.elevated ? "élevée" : "standard"}${filters.query ? ` · recherche « ${filters.query} »` : ""}\n`));
 }
 
-export function buildInteractiveChoices(items, filters) {
+export function buildInteractiveChoices(items, filters, width = 100) {
   const choices = [];
   for (const section of groupServers(items)) {
-    choices.push({ name: `── ${section.label} (${section.items.length})`, value: null, disabled: true });
-    choices.push({ name: color.dim("   PORT        ACCÈS    SERVICE            CONTEXTE         IDENT."), value: null, disabled: true });
+    choices.push({ name: sectionLabel(section), value: null, disabled: true });
+    choices.push({ name: color.dim(tableHeader(width, false)), value: null, disabled: true });
     for (const item of section.items) {
       choices.push({
-        name: row(item, true).trimStart(),
+        name: row(item, width, false),
         value: { type: "server", id: item.id },
+        description: guidance(item),
       });
     }
   }
@@ -92,9 +148,12 @@ export function buildInteractiveChoices(items, filters) {
 }
 
 export async function chooseAction(items, filters) {
+  const width = usefulWidth(process.stdout.columns);
   return serverPrompt({
-    choices: buildInteractiveChoices(items, filters),
+    choices: buildInteractiveChoices(items, filters, width),
     scopes: Object.keys(SCOPES),
+    emptyLabel: filters.scope === "attention" ? "✓ Rien ne nécessite votre attention" : "Aucun serveur dans cette vue",
+    width,
     pageSize: Math.min(24, items.length + 10),
   });
 }
@@ -109,6 +168,7 @@ export async function chooseServerAction(server) {
   process.stdout.write(`PID: ${server.pid ?? "masqué"}\nCommande: ${server.command ?? "inaccessible"}\nProjet: ${server.project ?? "aucun"}\n`);
   process.stdout.write(`Écoutes: ${(server.endpoints ?? []).map((e) => `${e.protocol}://${e.address}:${e.port}`).join(", ") || server.label}\n`);
   process.stdout.write(`Branche: ${server.branch ?? "—"}\nDossier: ${server.cwd ?? "—"}\nÉtat: ${flags(server)}\n`);
+  if (server.orphan) process.stdout.write(`Cause: ${server.worktree ? "worktree ou dossier de travail disparu" : "dossier de travail disparu"}\n`);
   if (server.unknownReason) process.stdout.write(`Limite: ${server.unknownReason}\n`);
   process.stdout.write("Preuves:\n");
   for (const evidence of server.evidence ?? ["aucune preuve disponible"]) process.stdout.write(`  • ${evidence}\n`);
