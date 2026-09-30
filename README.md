@@ -1,5 +1,17 @@
 # Supervision des serveurs du poste
 
+## Prototype exécutable Go
+
+L’implémentation Go sans dépendance tierce produit un binaire Linux statique :
+
+```bash
+make build
+./bin/server-watch status
+./bin/server-watch
+```
+
+Le binaire Go couvre la même interface que la version Node de référence : inventaire et identification, vues responsives, recherche, détails, lecture élevée avec sudo et arrêt gracieux confirmé.
+
 TUI Linux qui inventorie les sockets TCP et UDP en écoute et les relie, lorsque le noyau expose l'information, à leur processus et à leur projet Git.
 
 Elle indique pour chaque écoute : service identifié, niveau de confiance, preuves, gestionnaire, runtime, adresse, port, protocole, exposition hors localhost, PID, commande, dossier, projet, branche, worktree, processus orphelin et processus système.
@@ -9,13 +21,41 @@ L'identification suit une hiérarchie explicable : mapping Docker et signatures 
 ## Prérequis et installation
 
 - Linux avec `/proc`, `ss`, `ps` et `git` ;
-- Node.js 20.17 ou ultérieur ;
+- aucun runtime Go ou Node pour utiliser un binaire précompilé ;
+- Go 1.24 ou ultérieur uniquement pour compiler le binaire autonome ;
+- Node.js 20.17 ou ultérieur uniquement pour exécuter la version de référence et ses tests ;
 - droits suffisants pour voir et signaler les processus concernés.
 
 ```bash
 npm ci
 npm run tui
 ```
+
+Ou, sans runtime Node après compilation :
+
+```bash
+make build
+./bin/server-watch
+```
+
+Installation dans `~/.local/bin` et vérification :
+
+```bash
+make install
+server-watch --version
+```
+
+Les complétions sont générées sans écrire dans le profil du shell :
+
+```bash
+server-watch completion bash
+server-watch completion zsh
+server-watch completion fish
+```
+
+`make release VERSION=x.y.z` construit les binaires Linux `amd64` et `arm64` dans `dist/` avec un fichier `SHA256SUMS`. La version est injectée à la compilation. Le [contrat JSON v1](docs/json-contract-v1.md) documente les champs et les règles de compatibilité destinés aux scripts et intégrations.
+
+L'[architecture Go](docs/architecture.md) sépare l'interface pure, l'orchestrateur de sûreté et l'adaptateur Linux injectable.
 
 La vue initiale **Attention** réduit le bruit : elle ne montre que les éléments qui demandent une action ou une vérification. Un résumé décisionnel distingue immédiatement `Action recommandée`, `À vérifier` et `Sans anomalie`.
 
@@ -29,11 +69,15 @@ Le tableau s'adapte à la largeur du terminal. Sous 80 colonnes, il conserve seu
 
 Les libellés très répétés sont abrégés dans l'inventaire (`App`, `Non identifié`, `ext`, `loc`, `ident.`). Le panneau détaillé conserve les appellations et adresses complètes.
 
-La liste ne contient que les serveurs. Les actions globales utilisent des raccourcis permanents : `/` recherche, `u` affiche ou masque UDP, `e` active ou désactive l'identification élevée, `r` rafraîchit et `q` quitte.
+La liste ne contient que les serveurs. Les actions globales utilisent des raccourcis permanents : `/` recherche, `u` affiche ou masque UDP, `t` alterne les tris par priorité, port et projet, `e` active ou désactive l'identification élevée, `w` active le suivi automatique toutes les deux secondes, `r` rafraîchit, `?` affiche l'aide et `q` quitte. L'inventaire n'est plus recalculé pendant une simple navigation et la sélection est restaurée par l'identifiant stable du serveur après chaque collecte.
+
+La hauteur du terminal est également prise en compte. Lorsque toutes les lignes ne tiennent pas, la liste défile autour de la sélection, affiche sa position dans l'inventaire et conserve le diagnostic ainsi que les raccourcis essentiels à l'écran.
+
+Les actions contextuelles accélèrent les gestes quotidiens : `c` copie l'URL HTTP reconnue, puis à défaut le dossier ou le PID ; `o` ouvre uniquement une URL HTTP déduite d'un service ou port connu ; `p` révèle le dossier de travail ou le projet lorsqu'il existe encore. Elles ne transmettent jamais la commande observée à un shell. La vue, l'affichage UDP, le tri et le suivi sont mémorisés dans la configuration utilisateur ; l'élévation sudo reste volontairement limitée à la session courante.
 
 L'action **Améliorer l'identification avec sudo** demande l'authentification une seule fois, puis relance les inventaires avec une lecture privilégiée de `ss` et des seuls fichiers nécessaires sous `/proc/<PID>`. Elle aide à attribuer les sockets dont le propriétaire était masqué. Le bandeau indique clairement `Identification élevée`, et l'action inverse revient immédiatement au mode standard. Le programme lui-même n'est jamais relancé en root.
 
-Sélectionner un serveur ouvre son panneau détaillé avec commande, projet, branche, dossier et toutes ses écoutes. Aucun arrêt n'est effectué avant l'affichage du plan et une confirmation finale explicite, réglée sur **Non** par défaut. Le jeton exact `STOP:PID` est réservé au mode CLI automatisé.
+Sélectionner un serveur ouvre son panneau détaillé avec commande, projet, branche, dossier et toutes ses écoutes. Les valeurs d'options et variables reconnues comme mot de passe, jeton, secret ou clé sont masquées avant toute sortie. Le détail s'enveloppe et défile avec `↑/↓` lorsque la hauteur est limitée, tandis que sa position et ses actions restent visibles. Aucun arrêt n'est effectué avant l'affichage du plan et une confirmation finale explicite, réglée sur **Non** par défaut. Les processus système restent protégés dans la TUI ; le jeton exact `STOP:PID` est réservé au mode CLI automatisé.
 
 ## CLI non interactive
 
@@ -42,7 +86,20 @@ npm run status
 node src/cli.mjs status --json
 node src/cli.mjs status --sudo
 node src/cli.mjs stop --server 'process:1234:987654' --yes --confirm 'STOP:1234'
+
+# mêmes commandes avec le binaire autonome
+./bin/server-watch status
+./bin/server-watch status --json
+./bin/server-watch status --sudo
+./bin/server-watch check --port 5173 --port 8000 --json
+./bin/server-watch history --json
+./bin/server-watch run --name storefront -- npm run dev
+./bin/server-watch stop --server 'process:1234:987654' --yes --confirm 'STOP:1234'
 ```
+
+`check` sert de préflight avant un lancement et distingue `free`, `occupied` et `unavailable`; un port occupé retourne le code `2`. `history` restitue les apparitions et disparitions observées sans enregistrer les lignes de commande. `run` lance directement la commande fournie, sans shell, et associe ses descendants réseau au nom et au dossier choisis pendant toute leur durée de vie. Le registre d'association ne conserve pas les arguments de la commande.
+
+Pour valider les deux implémentations : `make test`. Pour un contrôle manuel sans risque, lancer `./bin/server-watch status`, puis la TUI avec `./bin/server-watch`; `q` quitte et aucun arrêt n'est possible sans ouvrir un détail, choisir `s`, puis confirmer explicitement.
 
 Pour préparer un arrêt sans l'exécuter, omettre `--yes` ou fournir un jeton incorrect : le plan et le jeton attendu seront affichés et le code de sortie sera `4`.
 
