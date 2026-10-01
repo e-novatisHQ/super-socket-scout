@@ -1,6 +1,6 @@
 # Contrat JSON v1
 
-Les sorties JSON de `server-watch` suivent le contrat public v1. Les champs documentés ici ne changent pas de nom ou de type dans une version compatible. De nouveaux champs optionnels peuvent être ajoutés ; les consommateurs doivent ignorer ceux qu'ils ne connaissent pas.
+Les sorties JSON de `sss` suivent le contrat public v1. Les champs documentés ici ne changent pas de nom ou de type dans une version compatible. De nouveaux champs optionnels peuvent être ajoutés ; les consommateurs doivent ignorer ceux qu'ils ne connaissent pas.
 
 ## `status --json`
 

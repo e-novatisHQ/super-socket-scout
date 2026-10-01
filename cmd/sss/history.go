@@ -36,14 +36,14 @@ type historyDelta struct {
 }
 
 func historyPath() (string, error) {
-	if explicit := os.Getenv("SERVER_WATCH_HISTORY"); explicit != "" {
+	if explicit := os.Getenv("SSS_HISTORY"); explicit != "" {
 		return explicit, nil
 	}
 	directory, err := os.UserCacheDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(directory, "server-watch", "history.json"), nil
+	return filepath.Join(directory, "sss", "history.json"), nil
 }
 
 func historyKey(s Server) string {

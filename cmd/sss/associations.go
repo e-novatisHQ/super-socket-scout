@@ -28,7 +28,7 @@ type associationFile struct {
 }
 
 func associationsPath() (string, error) {
-	if explicit := os.Getenv("SERVER_WATCH_ASSOCIATIONS"); explicit != "" {
+	if explicit := os.Getenv("SSS_ASSOCIATIONS"); explicit != "" {
 		return explicit, nil
 	}
 	stateDirectory := os.Getenv("XDG_STATE_HOME")
@@ -39,7 +39,7 @@ func associationsPath() (string, error) {
 		}
 		stateDirectory = filepath.Join(home, ".local", "state")
 	}
-	return filepath.Join(stateDirectory, "server-watch", "associations.json"), nil
+	return filepath.Join(stateDirectory, "sss", "associations.json"), nil
 }
 
 func readAssociations(path string) (associationFile, error) {
@@ -158,13 +158,13 @@ func applyAssociationRecords(items []Server, associations []association, parent 
 				continue
 			}
 			items[i].ServiceName = association.Name
-			items[i].Manager = "server-watch run"
+			items[i].Manager = "sss run"
 			items[i].Confidence = "certain"
 			items[i].UnknownReason = ""
 			if items[i].Runtime == "" {
 				items[i].Runtime = valueOr(items[i].ProcessName, "processus")
 			}
-			items[i].Evidence = append(items[i].Evidence, "lancé explicitement avec server-watch run")
+			items[i].Evidence = append(items[i].Evidence, "lancé explicitement avec sss run")
 			if items[i].Cwd == "" {
 				items[i].Cwd = association.Directory
 			}

@@ -1,0 +1,26 @@
+name: Bug report
+description: Report a reproducible problem
+body:
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps and expected/actual behavior
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: sss version
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Linux distribution, architecture and terminal
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Sanitized output
+      description: Remove credentials, tokens, private addresses, personal paths and raw process commands.

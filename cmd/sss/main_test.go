@@ -109,7 +109,7 @@ func TestCompletionAndVersionOptions(t *testing.T) {
 			t.Fatalf("completion %s invalide: %#v %v", shell, o, err)
 		}
 		script, err := completionScript(shell)
-		if err != nil || !strings.Contains(script, "server-watch") {
+		if err != nil || !strings.Contains(script, "sss") {
 			t.Fatalf("script %s invalide: %q %v", shell, script, err)
 		}
 	}
@@ -424,7 +424,7 @@ func TestExplicitAssociationNamesDescendantServer(t *testing.T) {
 	items := []Server{{PID: 42, ServiceName: "App Node.js", Manager: "serveur de développement", Confidence: "partial"}}
 	parents := map[int]int{42: 40, 40: 10, 10: 1}
 	applyAssociationRecords(items, []association{{PID: 10, Name: "Storefront", Directory: "/repo/storefront"}}, func(pid int) int { return parents[pid] })
-	if items[0].ServiceName != "Storefront" || items[0].Manager != "server-watch run" || items[0].Confidence != "certain" || !strings.Contains(strings.Join(items[0].Evidence, " "), "explicitement") {
+	if items[0].ServiceName != "Storefront" || items[0].Manager != "sss run" || items[0].Confidence != "certain" || !strings.Contains(strings.Join(items[0].Evidence, " "), "explicitement") {
 		t.Fatalf("association non appliquée: %#v", items[0])
 	}
 }

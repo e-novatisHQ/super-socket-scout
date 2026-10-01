@@ -2,3 +2,10 @@ node_modules/
 npm-debug.log*
 bin/
 dist/
+coverage.out
+.tools/
+.cache/
+.agents/
+.codex/
+.env
+.env.*

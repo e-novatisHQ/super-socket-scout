@@ -1,10 +1,10 @@
 {
-  "name": "workstation-server-supervisor",
-  "version": "1.0.0",
+  "name": "super-socket-scout",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "engines": { "node": ">=20.17.0" },
-  "bin": { "server-watch": "src/cli.mjs" },
+  "bin": { "sss": "src/cli.mjs" },
   "scripts": {
     "tui": "node src/cli.mjs",
     "status": "node src/cli.mjs status",

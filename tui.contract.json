@@ -4,8 +4,8 @@
   "entrypoint": "src/cli.mjs",
   "goExecutable": {
     "runtime": "go>=1.24",
-    "entrypoint": "cmd/server-watch",
-    "binary": "server-watch"
+    "entrypoint": "cmd/sss",
+    "binary": "sss"
   },
   "orchestrator": "src/orchestrator.mjs",
   "domainAdapter": "src/domain/server-adapter.mjs",

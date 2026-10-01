@@ -669,12 +669,12 @@ func helpForSize(w, h int) string {
 
 func helpScreenText(h int) string {
 	if h <= 18 {
-		return "\x1b[2J\x1b[H\x1b[1mAide server-watch\x1b[0m\n\n" +
+		return "\x1b[2J\x1b[H\x1b[1mAide Super Socket Scout (sss)\x1b[0m\n\n" +
 			"↑/↓ sélectionner · ←/→ ou 1–4 changer de vue\nEntrée détails · Échap/b retour\n\n" +
 			"/ rechercher · u UDP · t trier · w suivi\ne sudo · h historique · r rafraîchir\n" +
 			"c copier · o ouvrir · p projet\nq quitter · ? fermer l’aide\n"
 	}
-	return "\x1b[2J\x1b[H\x1b[1mAide server-watch\x1b[0m\n\n" +
+	return "\x1b[2J\x1b[H\x1b[1mAide Super Socket Scout (sss)\x1b[0m\n\n" +
 		"NAVIGATION\n  ↑/↓       sélectionner un serveur\n  ←/→, 1–4 changer de vue\n  Entrée    afficher les détails\n\n" +
 		"FILTRES ET SUIVI\n  /         rechercher par port, projet, PID ou commande\n  u         afficher ou masquer UDP\n  t         trier par priorité, port ou projet\n  w         activer le suivi automatique toutes les 2 s\n  e         améliorer l’identification avec sudo\n\n" +
 		"SESSION\n  h         consulter l’historique local\n  r         rafraîchir maintenant\n  q         quitter\n\nÉchap, b ou ? pour revenir\n"
@@ -1803,11 +1803,11 @@ func main() {
 	}
 	orchestrator := newServerOrchestrator(linuxServerAdapter{})
 	if o.showVersion {
-		fmt.Println("server-watch", version)
+		fmt.Println("sss", version)
 		return
 	}
 	if o.help {
-		fmt.Println("Usage:\n  server-watch\n  server-watch status [--sudo] [--json]\n  server-watch check --port PORT [--port PORT ...] [--sudo] [--json]\n  server-watch history [--json]\n  server-watch run [--name NOM] -- COMMANDE [ARG ...]\n  server-watch stop (--server ID ... | --all) --yes --confirm STOP:PID[,PID] [--include-system] [--json]\n  server-watch completion bash|zsh|fish\n  server-watch --version")
+		fmt.Println("Usage:\n  sss\n  sss status [--sudo] [--json]\n  sss check --port PORT [--port PORT ...] [--sudo] [--json]\n  sss history [--json]\n  sss run [--name NOM] -- COMMANDE [ARG ...]\n  sss stop (--server ID ... | --all) --yes --confirm STOP:PID[,PID] [--include-system] [--json]\n  sss completion bash|zsh|fish\n  sss --version")
 		return
 	}
 	if o.command == "completion" {

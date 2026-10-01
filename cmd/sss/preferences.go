@@ -15,14 +15,14 @@ type preferences struct {
 }
 
 func preferencesPath() (string, error) {
-	if explicit := os.Getenv("SERVER_WATCH_CONFIG"); explicit != "" {
+	if explicit := os.Getenv("SSS_CONFIG"); explicit != "" {
 		return explicit, nil
 	}
 	directory, err := os.UserConfigDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(directory, "server-watch", "config.json"), nil
+	return filepath.Join(directory, "sss", "config.json"), nil
 }
 
 func validScope(scope string) bool {
